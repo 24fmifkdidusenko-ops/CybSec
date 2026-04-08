@@ -1,0 +1,134 @@
+labwork1:
+Task 5.1 Initial Test (0 Setup / "default" mode)
+3. Check: 
+    ○ Does the Logo and CSS from Port 6000 load?
+no, because port 6000 - (failed)net::ERR_UNSAFE_PORT
+I think it's not related with task (I found only one way to "fix" it - run chrome.exe --explicitly-allowed-ports=6000, but it feels wrong);
+so I changed port to 6001 - now everything loads correctly
+
+    ○ Does the Support Chat from Port 4000 successfully fetch data?
+clicking on button with fetch:
+Access to fetch at 'http://localhost:4000/messages' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+GET http://localhost:4000/messages net::ERR_FAILED 200 (OK)
+all scripts in other cases loaded successfully, but if they have type="module" - same error 
+
+    ○ Open Developer Tools (F12) -> Console. Identify any red CORS errors.
+ERR_UNSAFE_PORT -  https://chromium.googlesource.com/chromium/src.git/+/refs/heads/master/net/base/port_util.cc - 6000 port is for X11 
+CORS policy: No 'Access-Control-Allow-Origin' - server response doesn't have this info in its header, so by default - any origin don't allowed
+
+
+Task 7: The Malicious Toggle
+    4. Analysis: Check the Network Tab. Identify which ports provided resources and which headers (like Access-Control-Allow-Origin: *) enabled this interaction.
+weather.js - status 200 - type script - requested index.html from port 3000 - GET /weather.js from port 5000
+
+
+
+labwork2:
+Task 1: The "Extreme" Security Lockdown
+    3. Observation: Refresh the app and check the console.
+Loading the stylesheet 'http://localhost:6001/theme.css' (and any other) violates the following Content Security Policy directive: "default-src 'self'". 
+Note that 'style-src-elem' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.
+
+    ○ Does the Logo (6000) load?
+no, 'img-src' was not explicitly set
+    ○ Do the Styles (6000) load?
+no, 'style-src-elem' was not explicitly set
+    ○ Do the Support/Weather scripts (4000/5000) load?
+no, 'script-src-elem' was not explicitly set
+
+4. Analysis: Write down which parts of the UI "broke."
+successfully loaded only main.js and /emails fetch request - from same origin (default-src 'self'), everything else (images, styles, widgets) broke
+
+
+Task 2: Granular Trust (The Balance)
+3. Testing the Policy:
+    ○ Verify Success: The Logo and CSS from Port 6000 should now work. The Support Chat from Port 4000 should work.
+image-src and style-src are now allowed from everyone (*), so it worked; support chat and "react" also loaded (their origins are allowed for scripts)
+but support doesn't work completely - fetch request is "connect-src" ("default-src" uses as fallback), which isn't allowed
+idk if this was intentional, so I did extra mode for fetch from support working
+
+    ○ Verify Protection: Does the Weather Widget (Port 5000) still load?
+Loading the script 'http://localhost:5000/weather.js' violates the following Content Security Policy directive: "script-src 'self' http://localhost:4000 http://localhost:6001". 
+Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked.
+
+UPD: I forgot to change version. It was too late to add this...
+
+
+
+labwork3:
+Task 2: Implementing Subresource Integrity (SRI)
+    1. Generate the Hash: Find a tool (or use a terminal command like openssl) to generate a SHA-256 base64 hash of your original/good react-mock.js file.
+openssl dgst -sha256 -binary StaticHost-6000/public/react-mock.js | openssl base64
+
+    3. Verification (The Defense):
+    ○ Keep the CDN in Breach Mode (returning the malicious alert).
+    ○ Refresh the Mail App.
+    ○ Observation: The alert should not appear. Check the Console (F12).
+Failed to find a valid digest in the 'integrity' attribute for resource 'http://localhost:6001/react-mock.js' 
+with computed SHA-256 integrity 'JUunuikT3f6nu1swXXXMdnKCpKe/Imn4jMag5P3CUpE='. The resource has been blocked.
+
+important notice - "integrity" makes CORS-request if origin is different, so I changed mode1 behavior in StaticHost to be default (for every mode) 
+
+
+Task 3: SRI with Versioning
+    3. Task for Students: Update the integrity attribute in index.html to match the new v1.0.1 file to restore functionality.
+2GvbKTD66J8otV0y9zaQ2sTUOPVGAuLE1wB+ZP2Rrvc= - old hash
+1c47stpx27K9A9z7HBSs6KL2Q80XXUj5yxk5QTeFyKU= - new hash, changed only one number in file
+
+
+labwork4
+Task 2: The "XSS-to-Cookie" Theft
+    2. Observation: Refresh the Mail App after logging in.
+my implementation accidentally partially broke theft - can't get user immediately after script loading
+but yes, still see cookie
+
+    3. Verification: Check the terminal logs of your WeatherApp (Port 5000). You should see the stolen SessionID appearing there.
+Adblock can block it.
+
+Task 3: Hardening with HttpOnly
+    ○ Does the attacker get the cookie now?.
+no, because document.cookie is now empty 
+
+Task 4: The Path Limit
+    2. Observation: * Try to fetch emails from http://localhost:3000/api/emails. Does the browser send the cookie?
+yes, cookie send on every /api path, but doesn't send on any other (and /other) path :)
+
+
+
+labwork5
+Task 1: The Malicious Proxy (MitM Attack)
+1.3 The Attack Execution
+    5. Analysis: Explain why HttpOnly was insufficient here. 
+we looked to raw HTTP headers, so defense against document.cookie just didn't work - we could see whole header with all info
+
+Task 2: Hardening against the Proxy (The Secure Flag)
+    3. Observation: Notice that because the connection to the proxy is http:// (unencrypted), the browser now refuses to send the cookie
+apparently, localhost and 127.0.0.1 are secure even if http, so I changed in drivers/etc/hosts name for testing - now cookies don't send
+
+
+
+labwork6
+Task 1: The "Client-Only" Logout (Flawed Implementation)
+    6. Observation: Notice that the server still returns the private email data.
+Modifying /emails is next step, so I checked if I could get username with "deleted" cookie - yes, I can. (used Postman)
+
+Task 2: Hardening the Logout (Synchronized Termination)
+    4. Observation: Confirm that the server now rejects the request with a 401 error. The session is now truly dead.
+I already had sessions file, so I can confirm - session gets deleted from this file, so now impossible reuse deleted cookie
+
+
+
+labwork7
+Task 3: Defense via SameSite Cookies
+    3. Observation: Check the Network Tab in Developer Tools for the request sent to Port 3000.
+1) localhost:3000 can't be protected by SameSite from localhost:5000 -> same site literally, so I changed to evil.local.host:5000
+2) by default - SameSite=Lax -> allow top-level navigation and GET requests, so <img> is not working (not navigation), but link is working
+3) SameSite=Strict -> cookie just don't send in any cases to not same site
+4) SameSite=None -> only possible with Secure, and allows to <img> work
+
+Task 4: Defense via POST and CSRF Tokens (Hardening)
+4.3 Verification
+    1. Try to trigger the deletion from the Malicious Page (Port 5000) using a hidden form.
+1) methods for POST-requests is very limited
+2) only can try(!) on SameSite=None (which is not even default)
+3) need to know token
